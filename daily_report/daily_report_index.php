@@ -23,6 +23,58 @@ if (isset($_GET["method"]) && $_GET["method"] == "delete" && isset($_GET["id"]))
         echo "Error: " . $stmt->error;
     }
 }
+
+$tablename = "daily_report";
+
+// 获取当前时间
+$current_time = date("Y-m-d", time());
+
+// 查询表中最新的一条记录
+$query = "select `datetime_create` FROM $tablename where is_delete = 0 ORDER BY `datetime_create` DESC LIMIT 1";
+$result = $conn->query($query);
+
+if ($result === false) {
+    die("Query failed: " . $conn->error);
+}
+
+$insert_data = true;
+
+if ($result->num_rows > 0) {
+    $row = $result->fetch_assoc();
+    $latest_date = date("Y-m-d", strtotime($row['datetime_create']));
+
+    // 比较最新记录的时间和当前时间
+    if ($latest_time < $current_time) {
+        $insert_data = false;
+    }
+}
+
+if ($insert_data) {
+    $stmt = $conn->prepare("insert INTO $tablename (`name`, `datetime_create`, `datetime_update`, `pid`, `num_year`, `num_month`, `num_week`,`weekday`,`is_even`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $datetime_create = $current_time;
+    $datetime_update = $current_time;
+    $year = date('Y', time());
+    $month = date('m', time());
+    $day = date('d', time());
+    $week = date('W', time());
+    $name = $year . '-' . $month . '-' . $day;
+    $weekday = '星期'.date('w', time());
+    $days = date('W', time())%2 == 1 ? 0: 1;
+    $pid = isset($_GET['pid']) ? $_GET['pid'] : 0;
+
+    $stmt->bind_param("sssiiiisi", $name, $datetime_create, $datetime_update, $pid, $year, $month, $week,$weekday,$days);
+
+    if ($stmt->execute()) {
+        echo "Data inserted successfully.";
+    } else {
+        echo "Insert failed: " . $stmt->error;
+    }
+
+    $stmt->close();
+} else {
+    echo "No data inserted as a more recent entry exists.";
+}
+
 ?>
 
 <head>
@@ -41,98 +93,69 @@ if (isset($_GET["method"]) && $_GET["method"] == "delete" && isset($_GET["id"]))
                 <div class="container-fluid">
                     <?php if (isset($_GET["method"])) {
                         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                            if (empty($_POST['id'])) {
-                                //daily_report_sql_insert
-                                $tablename = "daily_report";
-                                $stmt = $conn->prepare("insert INTO $tablename (`name`,`datetime_create`,`datetime_update`,`pid`,`num_year`,`num_month`,`num_week`) VALUES (?,?,?,?,?,?,?)");
-                                if (false === $stmt) {
-                                    die("Prepare failed: " . $conn->error);
-                                }
-                                $stmt->bind_param("sssiiii", $name, $datetime_create, $datetime_update, $pid,$year,$month,$week);
-                                $datetime_create = date("Y-m-d H:i:s", time());
-                                $datetime_update = date("Y-m-d H:i:s", time());
-                                $year=date('Y',time());
-                                $month=date('m',time());
-                                $day=date('d',time());
-                                $week=date('W',time());
-                                $name = $year.'-'.$month.'-'.$day;
-
-
-                                $pid = isset($_GET['pid']) ? $_GET['pid'] : 0;
-                                if ($stmt->execute()) {
-                                    echo '<script type="text/javascript">';
-                                    echo 'window.location.href="daily_report_index.php?pid=' . $pid . '";';
-                                    echo '</script>';
-                                    $stmt->close();
-                                    exit();
-                                } else {
-                                    echo "Error: " . $stmt->error;
-                                }
-                            } else {
-                                // 获取从表单提交的数据
-                                $id = $_POST['id'] ?? $_GET['id'] ?? 'default'; // 优先使用POST数据，如果没有则尝试从GET数据中获取
+                            // 获取从表单提交的数据
+                            $id = $_POST['id'] ?? $_GET['id'] ?? 'default'; // 优先使用POST数据，如果没有则尝试从GET数据中获取
                                 
-                                $is_publish = $_POST['is_publish'] ?? 0;
-                                $sort = $_POST['sort'] ?? 0;
-                                $pid = $_POST['pid'] ?? 0;
-                                $datetime_update = $_POST['datetime_update'] ?? date("Y-m-d H:i:s");
-                              
-                                $is_even = $_POST['is_even'] ?? 0;
-                                $content = $_POST['content'] ?? null;
-                                $feedback = $_POST['feedback'] ?? null;
-                              
-                                //daily_report_sql_update1
-                                $updateParts = [];
-                                $hasFeaturedImage = false;
-                                $newFilefeatured_image = null;
-                                $originfeatured_image = null;
-                                if (isset($_FILES["featured_image"]) && $_FILES["featured_image"]["error"] == 0) {
-                                    $file = $_FILES["featured_image"];
-                                    $originfeatured_image = $file["name"];
-                                    $uploadPath = "../uploads/";
-                                    $id = $_GET["id"] ?? 'default';
-                                    $extension = pathinfo($originfeatured_image, PATHINFO_EXTENSION);
-                                    $newFilefeatured_image = "daily_report_featured_image_" . $id . "." . $extension;
-                                    $filePath = $uploadPath . $newFilefeatured_image;
-                                    if (!is_dir($uploadPath) && !mkdir($uploadPath, 0777, true)) {
-                                        echo json_encode(["error" => "create error"]);
-                                        exit;
-                                    }
-                                    if (move_uploaded_file($file["tmp_name"], $filePath)) {
-                                        $hasFeaturedImage = true;
-                                    }
+                            $is_publish = $_POST['is_publish'] ?? 0;
+                            $sort = $_POST['sort'] ?? 0;
+                            $pid = $_POST['pid'] ?? 0;
+                            $datetime_update = $_POST['datetime_update'] ?? date("Y-m-d H:i:s");
+                          
+                            $is_even = $_POST['is_even'] ?? 0;
+                            $content = $_POST['content'] ?? null;
+                            $feedback = $_POST['feedback'] ?? null;
+                          
+                            //daily_report_sql_update1
+                            $updateParts = [];
+                            $hasFeaturedImage = false;
+                            $newFilefeatured_image = null;
+                            $originfeatured_image = null;
+                            if (isset($_FILES["featured_image"]) && $_FILES["featured_image"]["error"] == 0) {
+                                $file = $_FILES["featured_image"];
+                                $originfeatured_image = $file["name"];
+                                $uploadPath = "../uploads/";
+                                $id = $_GET["id"] ?? 'default';
+                                $extension = pathinfo($originfeatured_image, PATHINFO_EXTENSION);
+                                $newFilefeatured_image = "daily_report_featured_image_" . $id . "." . $extension;
+                                $filePath = $uploadPath . $newFilefeatured_image;
+                                if (!is_dir($uploadPath) && !mkdir($uploadPath, 0777, true)) {
+                                    echo json_encode(["error" => "create error"]);
+                                    exit;
                                 }
-                                if ($hasFeaturedImage) {
-                                    $updateParts['featured_image'] = $newFilefeatured_image;
-                                    $updateParts['featured_image_ori'] = $originfeatured_image;
+                                if (move_uploaded_file($file["tmp_name"], $filePath)) {
+                                    $hasFeaturedImage = true;
                                 }
-                                //daily_report_sql_upload
-                                //
-                                $tablename = "daily_report";
-                                $updateParts['content'] = $content;
-                                $updateParts['feedback'] = $feedback;
-                                
-                                $updateParts['datetime_update'] = $datetime_update;
-                                $updateParts['is_publish'] = $is_publish;
-                                $updateParts['pid'] = $pid;
-                                $updateParts['sort'] = $sort;
-                                //daily_report_sql_update2
-                                $sql = "update daily_report set ";
-                                $setStatements = [];
-                                foreach ($updateParts as $key => $value) {
-                                    $setStatements[] = "`$key` = ?";
-                                }
-                                $sql .= implode(", ", $setStatements) . " WHERE `id` = ?";
-                                $stmt = $conn->prepare($sql);
-                                if (!$stmt) {
-                                    die("Error: " . $conn->error);
-                                }
-                                $types = str_repeat("s", count($updateParts)) . "i";
-                                $params = array_values($updateParts);
-                                $params[] = $id;
-                                $stmt->bind_param($types, ...$params);
-                                $stmt->execute();
                             }
+                            if ($hasFeaturedImage) {
+                                $updateParts['featured_image'] = $newFilefeatured_image;
+                                $updateParts['featured_image_ori'] = $originfeatured_image;
+                            }
+                            //daily_report_sql_upload
+                            //
+                            $tablename = "daily_report";
+                            $updateParts['content'] = $content;
+                            $updateParts['feedback'] = $feedback;
+                            
+                            $updateParts['datetime_update'] = $datetime_update;
+                            $updateParts['is_publish'] = $is_publish;
+                            $updateParts['pid'] = $pid;
+                            $updateParts['sort'] = $sort;
+                            //daily_report_sql_update2
+                            $sql = "update daily_report set ";
+                            $setStatements = [];
+                            foreach ($updateParts as $key => $value) {
+                                $setStatements[] = "`$key` = ?";
+                            }
+                            $sql .= implode(", ", $setStatements) . " WHERE `id` = ?";
+                            $stmt = $conn->prepare($sql);
+                            if (!$stmt) {
+                                die("Error: " . $conn->error);
+                            }
+                            $types = str_repeat("s", count($updateParts)) . "i";
+                            $params = array_values($updateParts);
+                            $params[] = $id;
+                            $stmt->bind_param($types, ...$params);
+                            $stmt->execute();
                         }
                         if ($_GET['method'] != "add") {
                             $num_year = "";
@@ -247,7 +270,7 @@ if (isset($_GET["method"]) && $_GET["method"] == "delete" && isset($_GET["id"]))
                                                                                                                                                                                                                                                                                                                                 } else {
                                                                                                                                                                                                                                                                                                                                     echo htmlspecialchars($num_week);
                                                                                                                                                                                                                                                                                                                                 } ?>"><a class="btn btn-outline-primary d-none" id="div_a_num_week" target="_blank" href="https://www.google.com/search?q=num_week">Jump</a></div>
-                                        <div class="form-check mb-2" id="div_check_is_even"><input class="form-check-input" type="checkbox" id="is_even" name="is_even" value="1" <?php echo isset($is_evenStatus) ? $is_evenStatus : ""; ?>><label class="form-check-label" for="is_even">is_even</label></div>
+                                        <div class="form-check mb-2" id="div_check_is_even"><input disabled class="form-check-input" type="checkbox" id="is_even" name="is_even" value="1" <?php echo isset($is_evenStatus) ? $is_evenStatus : ""; ?>><label class="form-check-label" for="is_even">is_even</label></div>
                                         <div class="input-group mb-3" id="div_content"><span id="div_span_content" class="input-group-text">content</span><textarea <?php if ($_GET["method"] == "view") {
                                                                                                                                                                         echo "disabled";
                                                                                                                                                                     } ?> type="text" class="form-control" placeholder="content" id="content" name="content" value="" rows="5"><?php if ($_GET["method"] == "add") {
@@ -266,33 +289,8 @@ if (isset($_GET["method"]) && $_GET["method"] == "delete" && isset($_GET["id"]))
                                                                                                                                                                                                                                                                                                                                         } else {
                                                                                                                                                                                                                                                                                                                                             echo htmlspecialchars($feedback);
                                                                                                                                                                                                                                                                                                                                         } ?></textarea><a class="btn btn-outline-primary d-none" id="div_a_feedback" target="_blank" href="https://www.google.com/search?q=feedback">Jump</a></div>
-                                        <div class="form-check mb-2" id="div_check_is_publish">
-                                            <input class="form-check-input" type="checkbox" id="is_publish" name="is_publish" value="1" <?php echo isset($checkedStatus) ? $checkedStatus : ""; ?>>
-                                            <label class="form-check-label" for="is_publish">
-                                                is_publish
-                                            </label>
-                                        </div>
-                                        <?php if ($_GET['method'] != 'view' && $_GET["method"] != "add") { ?>
-                                            <div class="input-group mb-3">
-                                                <input type="file" class="form-control" id="featured_image" name="featured_image">
-                                                <label class="input-group-text" for="featured_image">featured_image Upload</label>
-                                            </div>
-                                        <?php } ?>
-                                        <?php if (isset($featured_image)) { ?>
-                                            <div class="row mt-2">
-                                                <div class="col-lg-12">
-                                                    <div class="row">
-                                                        <div class="col-lg-12">
-                                                            <div class="card">
-                                                                <div class="card-body">
-                                                                    <img src="/uploads/<?php echo $featured_image; ?>" class="img-fluid" alt="<?php echo $featured_image_ori; ?>">
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        <?php } ?>
+                                   
+                                       
                                         <div class="text-end"><?php if ($_GET['method'] == "add") {
                                                                     echo '<button type="submit" class="btn btn-success" accesskey="s">ADD</button>';
                                                                 } else if ($_GET['method'] == "edit") {
@@ -308,23 +306,13 @@ if (isset($_GET["method"]) && $_GET["method"] == "delete" && isset($_GET["id"]))
                         <?php
                         }
                     } else {
-                        includeFileWithVariables("../layouts/page-title.php", [
-                            "pagetitle" => "首页",
-                            "title" => "项目列表",
-                            "url" => "daily_report_index.php",
-                        ]); ?>
+                       ?>
                         <div class="row">
                             <div class="col-lg-12">
                                 <div class="card">
                                     <div class="card-header d-flex justify-content-between">
                                         <h5 class="card-title mb-0">daily_report</h5>
-                                        <div>
-                                            <a href="daily_report_index.php?pid=<?= $get_pid ?>&method=add" type="button" class="btn btn-success add-btn"><i class="ri-add-line align-bottom me-1"></i>
-                                                add</a>
-                                            <?php if (isset($_GET["pid"])) { ?>
-                                                <a href="daily_report_index.php" type="button" class="btn btn-danger waves-effect waves-light" accesskey="b">Back</a>
-                                            <?php } ?>
-                                        </div>
+                                       
                                     </div>
                                     <div class="card-body">
                                         <table id="<?php if (isset($_GET["pid"])) {
@@ -339,6 +327,7 @@ if (isset($_GET["method"]) && $_GET["method"] == "delete" && isset($_GET["id"]))
                                                     <th>num_year</th>
                                                     <th>num_month</th>
                                                     <th>num_week</th>
+                                                    <th>weekday</th>
                                                     <th>is_even</th>
                                                     <th>操作</th>
                                                 </tr>
@@ -367,12 +356,12 @@ if (isset($_GET["method"]) && $_GET["method"] == "delete" && isset($_GET["id"]))
                                                             <td><?= $row['num_year'] ?></td>
                                                             <td><?= $row['num_month'] ?></td>
                                                             <td><?= $row['num_week'] ?></td>
+                                                            <td><?= $row['weekday'] ?></td>
                                                             <td><?= $row['is_even'] ?></td>
                                                             <td>
                                                                 <div class=' d-inline-block'>
                                                                     <a href='daily_report_index.php?id=<?= $row['id'] ?>&method=view'><i class='ri-eye-fill align-bottom me-2 text-muted'></i> View</a>
                                                                     <a class='edit-item-btn' href='daily_report_index.php?id=<?= $row['id'] ?>&method=edit'><i class='ri-pencil-fill align-bottom me-2 text-muted'></i> Edit</a>
-                                                                    <a class='edit-item-btn' href='daily_report_index.php?id=<?= $row['id'] ?>&method=delete'><i class='ri-delete-bin-fill align-bottom me-2 text-muted'></i> Delete</a>
                                                                 </div>
                                                             </td>
                                                             </tr>
@@ -397,12 +386,12 @@ if (isset($_GET["method"]) && $_GET["method"] == "delete" && isset($_GET["id"]))
                                                             <td><?= $row['num_year'] ?></td>
                                                             <td><?= $row['num_month'] ?></td>
                                                             <td><?= $row['num_week'] ?></td>
+                                                            <td><?= $row['weekday'] ?></td>
                                                             <td><?= $row['is_even'] ?></td>
                                                             <td>
                                                                 <div class='d-inline-block'>
                                                                     <a href='daily_report_index.php?id=<?= $row['id'] ?>&method=view'><i class='ri-eye-fill align-bottom icon text-muted'></i> View</a>
                                                                     <a class='edit-item-btn' href='daily_report_index.php?id=<?= $row['id'] ?>&method=edit'><i class='ri-pencil-fill align-bottom icon text-muted'></i> Edit</a>
-                                                                    <a class='edit-item-btn' href='daily_report_index.php?id=<?= $row['id'] ?>&method=delete'><i class='ri-delete-bin-fill align-bottom icon text-muted'></i> Delete</a>
                                                                 </div>
                                                             </td>
                                                         </tr><?php
