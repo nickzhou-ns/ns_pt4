@@ -53,8 +53,9 @@ if (isset($_GET["method"]) && $_GET["method"] == "delete" && isset($_GET["id"]))
                                 $datetime_update = date("Y-m-d H:i:s", time());
                                 $year=date('Y',time());
                                 $month=date('m',time());
+                                $day=date('d',time());
                                 $week=date('W',time());
-                                $name = $year.' - '.$month.' - '.$week.'Weekly';
+                                $name = $year.'-'.$month.'-'.$day;
 
 
                                 $pid = isset($_GET['pid']) ? $_GET['pid'] : 0;
@@ -70,17 +71,16 @@ if (isset($_GET["method"]) && $_GET["method"] == "delete" && isset($_GET["id"]))
                             } else {
                                 // 获取从表单提交的数据
                                 $id = $_POST['id'] ?? $_GET['id'] ?? 'default'; // 优先使用POST数据，如果没有则尝试从GET数据中获取
-                                $name = $_POST['name'] ?? null;
+                                
                                 $is_publish = $_POST['is_publish'] ?? 0;
                                 $sort = $_POST['sort'] ?? 0;
                                 $pid = $_POST['pid'] ?? 0;
                                 $datetime_update = $_POST['datetime_update'] ?? date("Y-m-d H:i:s");
-                                $num_year = $_POST['num_year'] ?? null;
-                                $num_month = $_POST['num_month'] ?? null;
-                                $num_week = $_POST['num_week'] ?? null;
+                              
                                 $is_even = $_POST['is_even'] ?? 0;
                                 $content = $_POST['content'] ?? null;
                                 $feedback = $_POST['feedback'] ?? null;
+                              
                                 //daily_report_sql_update1
                                 $updateParts = [];
                                 $hasFeaturedImage = false;
@@ -109,13 +109,9 @@ if (isset($_GET["method"]) && $_GET["method"] == "delete" && isset($_GET["id"]))
                                 //daily_report_sql_upload
                                 //
                                 $tablename = "daily_report";
-                                $updateParts['num_year'] = $num_year;
-                                $updateParts['num_month'] = $num_month;
-                                $updateParts['num_week'] = $num_week;
-                                $updateParts['is_even'] = $is_even;
                                 $updateParts['content'] = $content;
                                 $updateParts['feedback'] = $feedback;
-                                $updateParts['name'] = $name;
+                                
                                 $updateParts['datetime_update'] = $datetime_update;
                                 $updateParts['is_publish'] = $is_publish;
                                 $updateParts['pid'] = $pid;
